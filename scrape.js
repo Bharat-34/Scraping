@@ -3,7 +3,7 @@ const axios = require('axios');
 const cheerio = require('cheerio');
 const path = require('path');
 
-const url = 'https://www.gutenberg.org/cache/epub/45631/pg45631-images.html';
+const url = 'https://www.gutenberg.org/cache/epub/72883/pg72883-images.html';
 const ttsApiEndpoint = 'https://would-childhood-author-pst.trycloudflare.com/tts_stream';
 
 async function generateAudioForChapter(chapter, chapterNumber, isFirstChapter) {
@@ -48,7 +48,6 @@ async function generateAudioForChapter(chapter, chapterNumber, isFirstChapter) {
 }
 
 
-
 async function scrapeGutenberg() {
     try {
         const response = await axios.get(url);
@@ -71,7 +70,7 @@ async function scrapeGutenberg() {
 
         if (authorNameElement.length > 0) {
             const authorName = authorNameElement.text().replace('Author:', '').trim();
-            console.log(`By : ${authorName}`);   
+            console.log(`By : ${authorName}`);
         }
 
         // Selecting chapter titles and content
@@ -79,52 +78,88 @@ async function scrapeGutenberg() {
         let currentChapter = null;
         let isFirstChapter = true;
 
-        // Process each element
-        $('body *').each((index, element) => {
-            const elementType = element.name;
-
-            if (elementType === 'h2' && $(element).find('a[id^="CHAPTER_"]').length > 0) {
-                // Found a chapter heading
-                const chapterTitle = $(element).text().trim();
-
-                if (isSummary(chapterTitle)) {
-                    // Skip chapter summaries
-                    return;
-                }
-
-                if (currentChapter !== null) {
-                    // Add the current chapter to the array
-                    allChapters.push(currentChapter);
-                }
-
-                // Create a new chapter object
-                currentChapter = {
-                    title: chapterTitle,
-                    content: [],
-                };
-
-                if (isFirstChapter) {
-                    // Add title and author to the first chapter
-                    currentChapter.content.push(`${bookTitle} ` + `By ${authorName}`);
-                    isFirstChapter = false; // Update isFirstChapter after processing the first chapter
-                }
-            } else if (elementType === 'div' && $(element).hasClass('chapter-summary')) {
-                // Replace chapter summary content with 6 dots
-                $(element).find('p').text('');
-            } else if (currentChapter !== null && elementType === 'p') {
-                // Process paragraphs within chapters
-                const paragraphText = $(element).text().trim();
-                const cleanedParagraph = paragraphText.replace(/\[Pg\s?\d+\]/g, ''); // Remove [Pg value]
-                if (cleanedParagraph.trim() !== '') {
-                    currentChapter.content.push(cleanedParagraph);
-                }
+       // Process each element
+       $('body *').each((index, element) => {
+        const elementType = element.name;
+    
+        if (elementType === 'h2' && $(element).find('a[id^="CHAPTER_"]').length > 0) {
+            // Found a chapter heading
+            const chapterTitle = $(element).text().trim();
+    
+            if (isSummary(chapterTitle)) {
+                // Skip chapter summaries
+                return;
             }
-        });
+    
+            if (currentChapter !== null) {
+                // Add the current chapter to the array
+                allChapters.push(currentChapter);
+            }
+    
+            // Create a new chapter object
+            currentChapter = {
+                title: chapterTitle,
+                content: [],
+            };
+    
+            if (isFirstChapter) {
+                // Add title and author to the first chapter
+                currentChapter.content.push(`${bookTitle} By ${authorName}`);
+                isFirstChapter = false; // Update isFirstChapter after processing the first chapter
+            }
+        } else if (elementType === 'div' && $(element).hasClass('chapter-summary')) {
+            // Replace chapter summary content with 6 dots
+            $(element).find('p').text('');
+        } else if ((elementType === 'h2' && $(element).attr('class') === 'nobreak' && $(element).attr('id').startsWith('CHAPTER_')) ||
+                   (elementType === 'h2' && $(element).text().toLowerCase().includes('chapter'))) {
+            // Existing and new selectors for chapter title
+            const chapterTitle = $(element).text().trim();
+    
+            if (isSummary(chapterTitle)) {
+                // Skip chapter summaries
+                return;
+            }
+    
+            if (currentChapter !== null) {
+                // Add the current chapter to the array
+                allChapters.push(currentChapter);
+            }
+    
+            // Create a new chapter object
+            currentChapter = {
+                title: chapterTitle,
+                content: [],
+            };
+    
+            if (isFirstChapter) {
+                // Add title and author to the first chapter
+                currentChapter.content.push(`${bookTitle} By ${authorName}`);
+                isFirstChapter = false; // Update isFirstChapter after processing the first chapter
+            }
+        } else if (elementType === 'p' && $(element).hasClass('finis')) {
+            // Found "The End" paragraph, stop processing chapters
+            return false;
+        } else if (currentChapter !== null && elementType === 'p') {
+            // Process paragraphs within chapters
+            const paragraphText = $(element).text().trim();
+            const cleanedParagraph = paragraphText.replace(/\[Pg\s?\d+\]/g, ''); // Remove [Pg value]
+            if (cleanedParagraph.trim() !== '') {
+                currentChapter.content.push(cleanedParagraph);
+            }
+        }
+    });
+    
 
         // Add the last chapter to the array
         if (currentChapter !== null) {
             allChapters.push(currentChapter);
-            
+        }
+
+
+        // Add the last chapter to the array
+        if (currentChapter !== null) {
+            allChapters.push(currentChapter);
+
         }
 
         //Output and generate audio for the first chapter
